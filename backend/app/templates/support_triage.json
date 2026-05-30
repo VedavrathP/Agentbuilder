@@ -1,0 +1,71 @@
+{
+  "name": "Support Triage",
+  "description": "A JSON-emitting classifier routes incoming customer messages deterministically to either a billing or technical-support specialist. Routing is driven by a parsed JSON `intent` field, so the decision is reproducible and there is no agent-to-agent ping-pong.",
+  "template_key": "support_triage",
+  "entry": "classifier",
+  "graph": {
+    "viewport": {"x": 0, "y": 0, "zoom": 1},
+    "nodes": [
+      {
+        "id": "classifier",
+        "type": "agent",
+        "position": {"x": 100, "y": 200},
+        "data": {
+          "role": "triage",
+          "system_prompt": "You are Orchestra's support-triage classifier. Read the user's most recent message and classify it.\n\nReturn ONLY a JSON object with this exact schema (no prose, no markdown fences):\n{\n  \"intent\": \"billing\" | \"technical\",\n  \"confidence\": number between 0 and 1,\n  \"reason\": short string\n}\n\nRules for `intent`:\n- \"billing\" → invoices, refunds, double charges, credit card failures, subscriptions, plan changes, taxes, receipts, pricing.\n- \"technical\" → bugs, crashes, error messages, login failures, slowness, feature questions, integrations.\nWhen a message contains both, pick the dominant concern.",
+          "model": "gpt-4o-mini",
+          "temperature": 0.0,
+          "tools": [],
+          "response_format": {"type": "json_object"}
+        }
+      },
+      {
+        "id": "route",
+        "type": "condition",
+        "position": {"x": 400, "y": 200},
+        "data": {
+          "router": "json_field",
+          "spec": {
+            "field": "intent",
+            "mapping": {
+              "billing": "billing_agent",
+              "technical": "tech_agent"
+            },
+            "default": "tech_agent"
+          }
+        }
+      },
+      {
+        "id": "billing_agent",
+        "type": "agent",
+        "position": {"x": 700, "y": 80},
+        "data": {
+          "role": "billing_specialist",
+          "system_prompt": "You are Orchestra's billing specialist. The triage classifier has already determined this is a billing-related issue, so DO NOT second-guess that routing and DO NOT ask for clarification on whether it is billing vs technical. Answer the customer's question directly in 2-5 sentences, with a concrete next step (e.g., 'I have flagged invoice #X for refund — you'll see it in 5-7 business days.'). If a literal invoice/account ID isn't provided, use a placeholder like '#REF-2026-001' and proceed.",
+          "model": "gpt-4o-mini",
+          "temperature": 0.3,
+          "tools": []
+        }
+      },
+      {
+        "id": "tech_agent",
+        "type": "agent",
+        "position": {"x": 700, "y": 320},
+        "data": {
+          "role": "technical_specialist",
+          "system_prompt": "You are Orchestra's technical-support specialist. The triage classifier has already determined this is a technical issue, so DO NOT second-guess that routing and DO NOT ask for clarification on whether it is billing vs technical. Answer the customer in 2-5 sentences with a concrete troubleshooting step or workaround.",
+          "model": "gpt-4o-mini",
+          "temperature": 0.3,
+          "tools": []
+        }
+      }
+    ],
+    "edges": [
+      {"id": "e1", "source": "classifier", "target": "route"},
+      {"id": "e2", "source": "route", "target": "billing_agent"},
+      {"id": "e3", "source": "route", "target": "tech_agent"},
+      {"id": "e4", "source": "billing_agent", "target": "__end__"},
+      {"id": "e5", "source": "tech_agent", "target": "__end__"}
+    ]
+  }
+}

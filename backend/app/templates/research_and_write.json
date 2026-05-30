@@ -1,0 +1,41 @@
+{
+  "name": "Research & Write",
+  "description": "A two-agent pipeline: a researcher searches the web, then a writer drafts a polished summary.",
+  "template_key": "research_and_write",
+  "entry": "researcher",
+  "graph": {
+    "viewport": {"x": 0, "y": 0, "zoom": 1},
+    "nodes": [
+      {
+        "id": "researcher",
+        "type": "agent",
+        "position": {"x": 100, "y": 200},
+        "data": {
+          "role": "researcher",
+          "system_prompt": "You are a meticulous research agent. When given a topic, call the web_search tool once or twice to gather concrete facts, then hand off your findings to the writer. Be concise and cite the URLs you used.",
+          "model": "gpt-4o-mini",
+          "temperature": 0.2,
+          "tools": [
+            {"type": "web_search", "config": {"max_results": 5}}
+          ]
+        }
+      },
+      {
+        "id": "writer",
+        "type": "agent",
+        "position": {"x": 500, "y": 200},
+        "data": {
+          "role": "writer",
+          "system_prompt": "You are a clear, structured writer. Read the researcher's findings from the conversation, then produce a final answer in 4-8 sentences. Include a short bullet list of source URLs at the end. Do not call any tools.",
+          "model": "gpt-4o-mini",
+          "temperature": 0.4,
+          "tools": []
+        }
+      }
+    ],
+    "edges": [
+      {"id": "e1", "source": "researcher", "target": "writer"},
+      {"id": "e2", "source": "writer", "target": "__end__"}
+    ]
+  }
+}

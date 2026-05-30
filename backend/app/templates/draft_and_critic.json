@@ -1,0 +1,78 @@
+{
+  "name": "Draft & Critic (Loop)",
+  "description": "A writer drafts an answer, a critic evaluates it as JSON {approved, feedback}. If not approved, control loops back to the writer with the critique. Per-node iteration caps and a total cost guardrail prevent runaway revision loops.",
+  "template_key": "draft_and_critic",
+  "entry": "writer",
+  "guardrails": {
+    "max_iterations": 12,
+    "max_cost_usd": 0.50
+  },
+  "memory_strategy": "thread",
+  "graph": {
+    "viewport": {"x": 0, "y": 0, "zoom": 1},
+    "nodes": [
+      {
+        "id": "writer",
+        "type": "agent",
+        "position": {"x": 100, "y": 200},
+        "data": {
+          "role": "writer",
+          "system_prompt": "You are a careful writer. Your goal is to produce a high-quality answer to the user's request.\n\n- On the FIRST turn, write a concise initial draft (4-8 sentences).\n- If the conversation contains a critic message starting with \"REVISION REQUESTED:\", revise the draft to address every point. Output ONLY the revised draft — no preamble, no meta commentary.\n- Do not call any tools.\n- Never apologise; just produce the next draft.",
+          "model": "gpt-4o-mini",
+          "temperature": 0.4,
+          "tools": [],
+          "loop_max_iterations": 4
+        }
+      },
+      {
+        "id": "critic",
+        "type": "agent",
+        "position": {"x": 400, "y": 200},
+        "data": {
+          "role": "critic",
+          "system_prompt": "You are a strict editorial critic. Read ONLY the most recent draft from the writer (the latest assistant message) and judge it.\n\nReturn ONLY a JSON object with this exact schema (no prose, no markdown fences):\n{\n  \"approved\": true | false,\n  \"feedback\": \"single short paragraph; if approved, why; if not, the specific changes you want\"\n}\n\nGuidelines:\n- Approve if the draft is clear, complete, factually plausible, and free of obvious errors.\n- Reject (approved=false) only for concrete, actionable reasons. Do not nitpick.\n- If you reject, your feedback MUST start with \"REVISION REQUESTED:\" followed by the specific issues.",
+          "model": "gpt-4o-mini",
+          "temperature": 0.0,
+          "tools": [],
+          "response_format": {"type": "json_object"},
+          "loop_max_iterations": 4
+        }
+      },
+      {
+        "id": "finalizer",
+        "type": "agent",
+        "position": {"x": 700, "y": 80},
+        "data": {
+          "role": "finalizer",
+          "system_prompt": "You are the publisher. The critic just APPROVED the latest draft. Output the approved draft VERBATIM, with no commentary, no headers, no JSON. Just the final text the user will see.",
+          "model": "gpt-4o-mini",
+          "temperature": 0.0,
+          "tools": []
+        }
+      },
+      {
+        "id": "route",
+        "type": "condition",
+        "position": {"x": 550, "y": 320},
+        "data": {
+          "router": "json_field",
+          "spec": {
+            "field": "approved",
+            "mapping": {
+              "true": "finalizer",
+              "false": "writer"
+            },
+            "default": "finalizer"
+          }
+        }
+      }
+    ],
+    "edges": [
+      {"id": "e1", "source": "writer", "target": "critic"},
+      {"id": "e2", "source": "critic", "target": "route"},
+      {"id": "e3", "source": "route", "target": "writer"},
+      {"id": "e4", "source": "route", "target": "finalizer"},
+      {"id": "e5", "source": "finalizer", "target": "__end__"}
+    ]
+  }
+}
